@@ -24,8 +24,11 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -106,6 +109,11 @@ public class MainActivity extends AppCompatActivity {
     // -------------------------------- 파이어베이스용 변수
     DatabaseReference mRootRef = FirebaseDatabase.getInstance().getReference(); // DB 테이블 불러오기
     DatabaseReference temperatureRef = mRootRef.child("벨 신호"); // 컬럼(속성)명 선정
+
+    EnteranceData data; // 벨 기록 클래스
+    ArrayList<String> mdata = new ArrayList<>();
+    EnteranceData temperature;  // 벨 기록 온도 클래스
+    ArrayList<Integer> mtemp = new ArrayList<>();
     // --------------------------------------------------
 
     @Override
@@ -173,7 +181,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-
+        // 온도 버튼 리스너
         btn_temperature.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -181,8 +189,49 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), "현재 온도는 섭씨 " + tempResult + "도 입니다.", Toast.LENGTH_SHORT).show();
             }});
 
-        // 블루투스 통신 데이터 관리 함수
-        // 전송 데이터 구조(byte) : 벨알림(1), 조도(1), 문열림(1), 온도(1), 섭씨(2)
+        // 벨누르기 기록 리스너
+        btn_person.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                temperatureRef.addListenerForSingleValueEvent(new ValueEventListener() {
+
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+
+                        for(DataSnapshot ds : snapshot.getChildren()){
+                            data = ds.getValue(EnteranceData.class);
+                            temperature =ds.getValue(EnteranceData.class);
+                            mdata.add(data.getDate());
+                            mtemp.add(data.getTemperature());
+                        }
+
+                        String t = "";
+                        for(int i = mdata.size()-1 ; i >= mdata.size()-5 ; i--){
+                            t += mdata.get(i)+"  온도: "+mtemp.get(i)+"\n";
+                        }
+
+                        AlertDialog.Builder ad = new AlertDialog.Builder(MainActivity.this);
+                        ad.setTitle("벨 누른 시간대 & 온도");
+                        ad.setMessage(t);
+
+                        ad.setNegativeButton("종료", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                dialogInterface.dismiss();
+                            }
+                        });
+
+                        ad.show();
+                    }
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                    }
+                });
+            }});
+
+
+
+        // 블루투스 통신 데이터 구조(byte) : 벨알림(1), 조도(1), 문열림(1), 온도(1), 섭씨(2)
         mBluetoothHandler = new Handler(){
             public void handleMessage(android.os.Message msg){
                 if(msg.what == BT_MESSAGE_READ) {
