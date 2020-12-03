@@ -77,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
     private Executor executor;
     private BiometricPrompt biometricPrompt;
     private BiometricPrompt.PromptInfo promptInfo;
@@ -94,10 +95,27 @@ public class MainActivity extends AppCompatActivity {
     BluetoothDevice mBluetoothDevice;
     BluetoothSocket mBluetoothSocket;
 
+    boolean sendMarker = true; // 데이터 전송 마커
+    int tempTen = 0;  // 섭씨 십의자리 일의자리 소수점
+    int tempOne = 0;
+    int tempFloat = 0;
+
     final static int BT_REQUEST_ENABLE = 1;
     final static int BT_MESSAGE_READ = 2;
     final static int BT_CONNECTING_STATUS = 3;
     final static UUID BT_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    // --------------------------------------------------
+
+
+    // -------------------------------- 파이어베이스용 변수
+    DatabaseReference mRootRef = FirebaseDatabase.getInstance().getReference(); // DB 테이블 불러오기
+    DatabaseReference temperatureRef = mRootRef.child("벨 신호"); // 컬럼(속성)명 선정
+
+    EnteranceData data; // 벨 기록 클래스
+    ArrayList<String> mdata = new ArrayList<>();
+    EnteranceData temperature;  // 벨 기록 온도 클래스
+    ArrayList<Integer> mtemp = new ArrayList<>();
+    // --------------------------------------------------
 
     // --------------------------------
 
@@ -143,6 +161,8 @@ public class MainActivity extends AppCompatActivity {
             public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                 super.onAuthenticationSucceeded(result);
                 Toast.makeText(getApplicationContext(), R.string.auth_success_message, Toast.LENGTH_SHORT).show();
+                mThreadConnectedBluetooth.write("1".toString());
+
                 btn_door.setBackgroundResource(R.drawable.door_open1);
                 txt_door.setText("도어락 열림");
             }
@@ -179,6 +199,18 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // 온도 버튼 리스너
+        btn_temperature.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                float tempResult = ((tempTen * 10) + tempOne) + ((float)tempFloat*0.1f);
+                Toast.makeText(getApplicationContext(), "현재 온도는 섭씨 " + tempResult + "도 입니다.", Toast.LENGTH_SHORT).show();
+            }});
+
+        // 벨누르기 기록 리스너
+        btn_person.setOnClickListener(new Button.OnClickListener() {
+            @Override
+            public void onClick(View view) {
         // 벨알림(1), 조도(1), 문열림(1), 온도(1) 핫콜, 온도(2) 섭씨
         // 블루투스 통신 데이터 관리 함수
         mBluetoothHandler = new Handler(){
@@ -229,6 +261,7 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         AlertDialog.Builder ad = new AlertDialog.Builder(MainActivity.this);
+                        ad.setTitle("벨 누른 시간대 & 온도");
                         ad.setTitle("벨누른 시간대 & 온도");
                         ad.setMessage(t);
 
@@ -245,6 +278,50 @@ public class MainActivity extends AppCompatActivity {
                     public void onCancelled(@NonNull DatabaseError error) {
                     }
                 });
+            }});
+
+
+
+        // 블루투스 통신 데이터 구조(byte) : 벨알림(1), 조도(1), 문열림(1), 온도(1), 섭씨(2)
+        mBluetoothHandler = new Handler(){
+            public void handleMessage(android.os.Message msg){
+                if(msg.what == BT_MESSAGE_READ) {
+                    String readMessage = null;
+                    try {
+                        readMessage = new String((byte[]) msg.obj, "UTF-8"); // 수신된 데이터를 string으로 변환
+
+                    } catch (UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                    }
+
+                    btn_bell.setBackgroundResource((readMessage.charAt(0) - '0' > 0) ? R.drawable.bell_pressed : R.drawable.bell_default); // 벨
+                    btn_person.setBackgroundResource((readMessage.charAt(1) - '0' > 0) ? R.drawable.door_person_yes : R.drawable.door_person_default); // 조도
+                    btn_door.setBackgroundResource((readMessage.charAt(2) - '0' > 0) ? ((readMessage.charAt(2) - '0' == 2) ? R.drawable.door_close1 : R.drawable.door_open1) : R.drawable.door_default); // 문
+                    btn_temperature.setBackgroundResource((readMessage.charAt(3) - '0' > 0) ? R.drawable.temperature_hot : R.drawable.temperature_default); // 온도
+
+                    tempTen = readMessage.charAt(4) - '0';
+                    tempOne = readMessage.charAt(5) - '0';
+                    tempFloat = readMessage.charAt(6) - '0';
+
+                    // 벨 소리가 울리면
+                    if (readMessage.charAt(0) - '0' > 0 && sendMarker) {
+                        Info infoData = new Info(((readMessage.charAt(4) - '0') * 10) + (readMessage.charAt(5) - '0')); // 온도 셋팅
+                        temperatureRef.push().setValue(infoData); // 온도 정보 전송
+                        sendMarker = false; // 정보는 1회만 전송
+                    }
+
+                    // 벨 소리가 안울리면
+                    if (!(readMessage.charAt(0) - '0' > 0)) {
+                        sendMarker = true; // marker 초기화
+                    }
+                }
+            }
+        };
+
+    }
+
+
+
             }
         });
 

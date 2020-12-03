@@ -105,7 +105,47 @@
 
         </LinearLayout>
 
+            <Button
+                android:layout_width="130sp"
+                android:layout_height="130sp"
+                android:id="@+id/btn_person"
+                android:background="@drawable/door_person_default"/>
+            <TextView
+                android:layout_marginTop="10sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="25sp"
+                android:gravity="center"
+                android:id="@+id/txt_person"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="10sp">
+
+            <Button
+                android:layout_width="130sp"
+                android:layout_height="130sp"
+                android:id="@+id/btn_door"
+                android:background="@drawable/door_default"/>
+            <TextView
+                android:layout_marginTop="10sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="25sp"
+                android:gravity="center"
+                android:id="@+id/txt_door"/>
+
+        </LinearLayout>
+
     </LinearLayout>
+
+
 
 
 </LinearLayout>
