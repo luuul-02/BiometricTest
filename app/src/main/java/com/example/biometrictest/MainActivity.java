@@ -19,8 +19,10 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -76,8 +78,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
     private Executor executor;
     private BiometricPrompt biometricPrompt;
     private BiometricPrompt.PromptInfo promptInfo;
@@ -85,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
     TextView txt_door,txt_temperature,txt_person;
 
     // ---------------------------------   블루투스용 변수
+
     BluetoothAdapter mBluetoothAdapter;
     Set<BluetoothDevice> mPairedDevices;
     List<String> mListPairedDevices;
@@ -115,6 +116,19 @@ public class MainActivity extends AppCompatActivity {
     EnteranceData temperature;  // 벨 기록 온도 클래스
     ArrayList<Integer> mtemp = new ArrayList<>();
     // --------------------------------------------------
+
+    // --------------------------------
+
+
+    // -------------------------------- 파이어베이스용 변수
+
+    DatabaseReference mRootRef = FirebaseDatabase.getInstance().getReference(); // DB 테이블 불러오기
+    DatabaseReference temperatureRef = mRootRef.child("벨 신호"); // 컬럼(속성)명 선정
+
+    EnteranceData data;
+    ArrayList<String> mdata = new ArrayList<>();
+    EnteranceData temperature;
+    ArrayList<Integer> mtemp = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -149,12 +163,16 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), R.string.auth_success_message, Toast.LENGTH_SHORT).show();
                 mThreadConnectedBluetooth.write("1".toString());
 
+                btn_door.setBackgroundResource(R.drawable.door_open1);
+                txt_door.setText("도어락 열림");
             }
             //지문 인증 실패
             @Override
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
                 Toast.makeText(getApplicationContext(), R.string.auth_fail_message, Toast.LENGTH_SHORT).show();
+                btn_door.setBackgroundResource(R.drawable.door_close1);
+                txt_door.setText("도어락 잠김");
             }
         });
         promptInfo = new BiometricPrompt.PromptInfo.Builder()
@@ -193,6 +211,38 @@ public class MainActivity extends AppCompatActivity {
         btn_person.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
+        // 벨알림(1), 조도(1), 문열림(1), 온도(1) 핫콜, 온도(2) 섭씨
+        // 블루투스 통신 데이터 관리 함수
+        mBluetoothHandler = new Handler(){
+            public void handleMessage(android.os.Message msg){
+                if(msg.what == BT_MESSAGE_READ) {
+                    String readMessage = null;
+                    try {
+                        readMessage = new String((byte[]) msg.obj, "UTF-8"); // 수신된 데이터를 string으로 변환
+
+                    } catch (UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                    }
+
+                    btn_bell.setBackgroundResource((readMessage.charAt(0) - '0' > 0) ? R.drawable.bell_pressed : R.drawable.bell_default);
+                    btn_person.setBackgroundResource((readMessage.charAt(1) - '0' > 0) ? R.drawable.door_person_yes : R.drawable.door_person_default);
+                    btn_door.setBackgroundResource((readMessage.charAt(2) - '0' > 0) ? R.drawable.door_open1 : R.drawable.door_default);
+                    btn_temperature.setBackgroundResource((readMessage.charAt(3) - '0' > 0) ? R.drawable.temperature_hot : R.drawable.temperature_default);
+
+                    // 벨 소리가 울리면
+                    if(readMessage.charAt(0) - '0'>0) {
+                        Info infoData = new Info(((readMessage.charAt(4) - '0') * 10) + (readMessage.charAt(5) - '0')); // 온도 셋팅
+                        temperatureRef.setValue(infoData); // 정보 전송
+                    }
+                }
+            }
+        };
+
+        // 출입기록 확인 dialog
+        btn_person.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
                 temperatureRef.addListenerForSingleValueEvent(new ValueEventListener() {
 
                     @Override
@@ -212,6 +262,7 @@ public class MainActivity extends AppCompatActivity {
 
                         AlertDialog.Builder ad = new AlertDialog.Builder(MainActivity.this);
                         ad.setTitle("벨 누른 시간대 & 온도");
+                        ad.setTitle("벨누른 시간대 & 온도");
                         ad.setMessage(t);
 
                         ad.setNegativeButton("종료", new DialogInterface.OnClickListener() {
@@ -270,6 +321,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+
+            }
+        });
+
+    }
 
     // 블루투스 함수
     @Override
